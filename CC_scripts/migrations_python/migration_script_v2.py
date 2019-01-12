@@ -2,7 +2,8 @@ from slickrpc import Proxy
 import time
 import sys
 import datetime
-
+import calendar
+import time
 
 def print_balance(rpc_connection_source, rpc_connection_destination):
     balance_source = rpc_connection_source.getbalance()
@@ -70,13 +71,49 @@ def broadcast_on_destinationchain(rpc_connection, complete_tx, dest_tx_list):
 
 
 # SET RPC CONNECTION DETAILS HERE
-rpc_connection_sourcechain = Proxy("http://%s:%s@127.0.0.1:%d"%("user", "password", 30667))
-rpc_connection_destinationchain = Proxy("http://%s:%s@127.0.0.1:%d"%("user", "password", 50609))
-rpc_connection_kmdblockchain = Proxy("http://%s:%s@127.0.0.1:%d"%("user", "password", 7771))
+rpc_connection_sourcechain = Proxy("http://%s:%s@127.0.0.1:%d"%("user1531394351", "pass24e95276e008e3f6176b672631a89beef6959ce9dae44f8bdb7a92e5ca41e56c77", 30667))
+rpc_connection_destinationchain = Proxy("http://%s:%s@127.0.0.1:%d"%("user2491106895", "pass253372aea1796039438e3e3c240a39cec6f9aa11cff7bc3d3c29ab93c0e985d73e", 50609))
+rpc_connection_kmdblockchain = Proxy("http://%s:%s@127.0.0.1:%d"%("tony", "156ewr", 7771))
 # SET ADDRESS AND MIGRATION AMOUNT HERE
-address = "RHq3JsvLxU45Z8ufYS6RsDpSG4wi6ucDev"
-amount = 0.001
+address = "RSbcG63XbgfAwmFmPA362d4zqLb31hJiyt"
+amount = 2
 migrations_amount = 500
+
+# preparing UTXOs if there is not enough
+utxos_sourcechain = len(rpc_connection_sourcechain.listunspent())
+utxos_destinationchain = len(rpc_connection_destinationchain.listunspent())
+
+print(str(utxos_sourcechain) + " source chain UTXOs\n")
+print(str(utxos_destinationchain) + " destination chain UTXOs\n")
+
+while True:
+    start_utxo_maker = input("Do you want to make more UTXOs? y/n: ")
+    if start_utxo_maker == "y":
+        utxos_amount = int(input("Input amount of UTXOs you want to make: "))
+        amount_for_utxo = 0.1
+        while utxos_amount > 0:
+            source_utxo = rpc_connection_sourcechain.sendtoaddress(address, amount_for_utxo)
+            destination_utxo = rpc_connection_destinationchain.sendtoaddress(address, amount_for_utxo)
+            time.sleep(0.1)
+            utxos_amount = utxos_amount - 1
+            amount_for_utxo = amount_for_utxo + 0.11
+        while True:
+            confirmations_source = int(rpc_connection_sourcechain.gettransaction(source_utxo)["confirmations"])
+            confirmations_destination = int(rpc_connection_destinationchain.gettransaction(destination_utxo)["confirmations"])
+            if confirmations_source > 0 and confirmations_destination > 0:
+                print("Seems more UTXOs created")
+                utxos_sourcechain = len(rpc_connection_sourcechain.listunspent())
+                utxos_destinationchain = len(rpc_connection_destinationchain.listunspent())
+                print(str(utxos_sourcechain) + " source chain UTXOs\n")
+                print(str(utxos_destinationchain) + " destination chain UTXOs\n")
+                break
+            else:
+                print("Let's wait more...")
+                time.sleep(15)
+    elif start_utxo_maker == "n":
+        break
+    else:
+        print("Input y or n\n")
 
 t0 = time.time()
 
@@ -107,6 +144,17 @@ while counter_raw > 0:
         sys.exit()
     sent_tx_list.append(sent_tx)
     counter_raw = counter_raw - 1
+
+payouts_filename = "payouts_"+str(calendar.timegm(time.gmtime()))+".txt"
+with open(payouts_filename, "a+") as payouts_file:
+    payouts_file.writelines(payouts_list)
+
+export_filename = "export_transactions_"+str(calendar.timegm(time.gmtime()))+".txt"
+with open(export_filename, "a+") as export_transactions_file:
+    export_transactions_file.writelines(sent_tx_list)
+
+print("Payouts saved to: " + payouts_filename + "\n")
+print("Export txids saved to: " + export_filename + "\n")
 
 print(str(len(sent_tx_list)) + " export transactions sent:\n")
 for sent_tx in sent_tx_list:
